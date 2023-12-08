@@ -1,0 +1,26 @@
+[package]
+name = "clip_cpp-sys"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+links = "clip.cpp"
+repository = "https://github.com/ionosnetworks/clip_cpp-rs"
+license = "MIT"
+description = "Native bindings to clip.cpp"
+keywords = ["clip.cpp", "monatis"]
+categories = ["external-ffi-bindings"]
+
+[dependencies]
+
+[build-dependencies]
+cmake = { version = "0.1" }
+bindgen = "0.65.1"
+
+[lib]
+name = "clip_cpp_sys"
+path = "src/lib.rs"
+
+[features]
+build_image_search = []
+build_shared_libs = []
+ggml_cublas = []

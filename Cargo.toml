@@ -1,0 +1,25 @@
+[package]
+name = "clip_cpp-rs"
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/ionosnetworks/clip_cpp-rs"
+readme = "README.md"
+license = "MIT"
+description = "Rust wrapper for clip.cpp Library"
+keywords = ["clip.cpp", "monatis"]
+categories = ["api-bindings"]
+exclude = ["Cargo.lock"]
+
+[workspace]
+members = ["clip_cpp-sys"]
+
+[features]
+default = ["build_image_search", "build_shared_libs"]
+build_image_search = ["clip_cpp-sys/build_image_search"]
+build_shared_libs = ["clip_cpp-sys/build_shared_libs"]
+ggml_cublas = ["clip_cpp-sys/ggml_cublas"]
+
+[dependencies]
+clip_cpp-sys = { path = "clip_cpp-sys",  version = "0.1.0"}
+itertools = "0.12"
+num-traits = "0.2"
