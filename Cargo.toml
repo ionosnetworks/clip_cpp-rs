@@ -14,12 +14,43 @@ exclude = ["Cargo.lock"]
 members = ["clip_cpp-sys"]
 
 [features]
-default = ["build_image_search", "build_shared_libs"]
+default = [
+    "native",
+    "avx",
+    "avx2",
+    "fma",
+    "f16c",
+    "accelerate",
+    "build_image_search",
+    "build_shared_libs",
+]
+static = ["clip_cpp-sys/static"]
+build_tests = ["clip_cpp-sys/build_tests"]
+build_examples = ["clip_cpp-sys/build_examples"]
 build_image_search = ["clip_cpp-sys/build_image_search"]
 build_shared_libs = ["clip_cpp-sys/build_shared_libs"]
+native = ["clip_cpp-sys/native"]
+lto = ["clip_cpp-sys/lto"]
+all_warnings = ["clip_cpp-sys/all_warnings"]
+all_warnings_3rd_party = ["clip_cpp-sys/all_warnings_3rd_party"]
+gprof = ["clip_cpp-sys/gprof"]
+sanitize_thread = ["clip_cpp-sys/sanitize_thread"]
+sanitize_address = ["clip_cpp-sys/sanitize_address"]
+sanitize_undefined = ["clip_cpp-sys/sanitize_undefined"]
+avx = ["clip_cpp-sys/avx"]
+avx2 = ["clip_cpp-sys/avx2"]
+fma = ["clip_cpp-sys/fma"]
+avx512 = ["clip_cpp-sys/avx512"]
+avx512_vbmi = ["clip_cpp-sys/avx512_vbmi"]
+avx512_vnni = ["clip_cpp-sys/avx512_vnni"]
+f16c = ["clip_cpp-sys/f16c"]
+accelerate = ["clip_cpp-sys/accelerate"]
+openblas = ["clip_cpp-sys/openblas"]
 ggml_cublas = ["clip_cpp-sys/ggml_cublas"]
 
 [dependencies]
-clip_cpp-sys = { path = "clip_cpp-sys",  version = "0.1.0"}
-itertools = "0.12"
-num-traits = "0.2"
+clip_cpp-sys = { path = "clip_cpp-sys", version = "0.1.0", default-features = false }
+thiserror = "1"
+
+[dev-dependencies]
+image = { version = "0.24", default-features = false, features = ["jpeg"] }
