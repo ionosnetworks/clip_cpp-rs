@@ -89,6 +89,8 @@ pub struct Model {
     vision_params: VisionParams,
 }
 
+unsafe impl Send for Model {}
+
 impl Model {
     pub fn builder<P: AsRef<Path>>(model_path: P) -> ModelBuilder {
         ModelBuilder {
