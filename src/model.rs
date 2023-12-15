@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
 use super::{Error, Image, TextParams, VisionParams};
@@ -20,7 +21,8 @@ impl Default for Verbosity {
 pub struct ModelBuilder {
     verbosity: Verbosity,
     path: PathBuf,
-    threads: i32,
+    ggml_threads: i32,
+    image_preprocess_threads: i32,
 }
 
 impl ModelBuilder {
@@ -29,8 +31,19 @@ impl ModelBuilder {
         self
     }
 
-    pub fn threads(mut self, threads: usize) -> Self {
-        self.threads = threads as _;
+    pub fn threads(mut self, threads: NonZeroUsize) -> Self {
+        self.ggml_threads = threads.get() as _;
+        self.image_preprocess_threads = threads.get() as _;
+        self
+    }
+
+    pub fn ggml_threads(mut self, threads: NonZeroUsize) -> Self {
+        self.ggml_threads = threads.get() as _;
+        self
+    }
+
+    pub fn image_preprocess_threads(mut self, threads: NonZeroUsize) -> Self {
+        self.image_preprocess_threads = threads.get() as _;
         self
     }
 
@@ -55,7 +68,8 @@ impl ModelBuilder {
             ctx,
             text_params: text_params.into(),
             vision_params: vision_params.into(),
-            threads: self.threads,
+            ggml_threads: self.ggml_threads,
+            image_preprocess_threads: self.image_preprocess_threads,
         })
     }
 }
@@ -84,7 +98,8 @@ impl AsRef<clip_cpp_sys::clip_image_f32> for Blob {
 
 pub struct Model {
     ctx: std::ptr::NonNull<clip_cpp_sys::clip_ctx>,
-    threads: i32,
+    ggml_threads: i32,
+    image_preprocess_threads: i32,
     text_params: TextParams,
     vision_params: VisionParams,
 }
@@ -95,7 +110,8 @@ impl Model {
     pub fn builder<P: AsRef<Path>>(model_path: P) -> ModelBuilder {
         ModelBuilder {
             verbosity: Verbosity::default(),
-            threads: 1,
+            ggml_threads: 1,
+            image_preprocess_threads: 1,
             path: PathBuf::from(model_path.as_ref()),
         }
     }
@@ -127,7 +143,7 @@ impl Model {
         unsafe {
             clip_cpp_sys::clip_text_encode(
                 self.ctx.as_ptr(),
-                self.threads,
+                self.ggml_threads,
                 &tokens.tokens,
                 encode.as_mut_ptr(),
                 normalize,
@@ -164,7 +180,7 @@ impl Model {
         unsafe {
             clip_cpp_sys::clip_image_encode(
                 self.ctx.as_ptr(),
-                self.threads,
+                self.ggml_threads,
                 &blob.image as *const _ as *mut _,
                 encode.as_mut_ptr(),
                 normalize,
@@ -207,7 +223,7 @@ impl Model {
         unsafe {
             clip_cpp_sys::clip_image_batch_preprocess(
                 self.ctx.as_ptr(),
-                self.threads,
+                self.image_preprocess_threads,
                 &batch,
                 &mut blobs_batch,
             );
@@ -240,7 +256,7 @@ impl Model {
         unsafe {
             clip_cpp_sys::clip_image_batch_encode(
                 self.ctx.as_ptr(),
-                self.threads,
+                self.ggml_threads,
                 &input_img_batch,
                 encode.as_mut_ptr(),
                 normalize,
