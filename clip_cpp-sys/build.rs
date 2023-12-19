@@ -61,10 +61,15 @@ fn build_ggml_library() {
 
     config.no_build_target(true);
 
-    if env::var("CARGO_FEATURE_BUILD_SHARED_LIBS").is_ok() {
-        config.define("BUILD_SHARED_LIBS", "1");
+    if env::var("CARGO_FEATURE_GGML_STATIC").is_ok() {
+        config.define("GGML_STATIC", "1");
     } else {
-        config.define("BUILD_SHARED_LIBS", "0");
+        config.define("GGML_STATIC", "0");
+        if env::var("CARGO_FEATURE_BUILD_SHARED_LIBS").is_ok() {
+            config.define("BUILD_SHARED_LIBS", "1");
+        } else {
+            config.define("BUILD_SHARED_LIBS", "0");
+        }
     }
 
     if env::var("CARGO_FEATURE_ALL_WARNINGS").is_ok() {
@@ -128,6 +133,12 @@ fn build_ggml_library() {
     }
 
     if env::var("CARGO_FEATURE_GGML_CUBLAS").is_ok() {
+        config.define("GGML_CUBLAS", "1");
+    } else {
+        config.define("GGML_CUBLAS", "0");
+    }
+
+    if env::var("CARGO_FEATURE_GGML_OPENBLAS").is_ok() {
         config.define("GGML_OPENBLAS", "1");
     } else {
         config.define("GGML_OPENBLAS", "0");
@@ -182,10 +193,29 @@ fn build_ggml_library() {
     println!("Configuring and compiling ggml library");
     let dst = config.build();
 
-    println!("cargo:rustc-link-search=native={}/build", dst.display());
+    println!(
+        "cargo:rustc-link-search=native={}/build/ggml/src",
+        dst.display()
+    );
+    if env::var("CARGO_FEATURE_GGML_CUBLAS").is_ok() {
+        println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+    }
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-lib=dylib=stdc++");
-    println!("cargo:rustc-link-lib=ggml");
+
+    if env::var("CARGO_FEATURE_GGML_CUBLAS").is_ok()
+        && env::var("CARGO_FEATURE_GGML_STATIC").is_ok()
+    {
+        println!("cargo:rustc-link-lib=static=cudart_static");
+        println!("cargo:rustc-link-lib=static=cublas_static");
+        println!("cargo:rustc-link-lib=static=cublasLt_static");
+    }
+
+    if env::var("CARGO_FEATURE_GGML_STATIC").is_ok() {
+        println!("cargo:rustc-link-lib=static=ggml");
+    } else {
+        println!("cargo:rustc-link-lib=ggml");
+    }
     println!("cargo:rerun-if-changed=wrapper.h");
 
     let bindings = bindgen::Builder::default()
@@ -206,8 +236,14 @@ fn build_clip_cpp_library() {
 
     if env::var("CARGO_FEATURE_STATIC").is_ok() {
         config.define("CLIP_STATIC", "1");
+        config.define("STB_IMAGE_STATIC", "1");
     } else {
         config.define("CLIP_STATIC", "0");
+        if env::var("CARGO_FEATURE_BUILD_SHARED_LIBS").is_ok() {
+            config.define("BUILD_SHARED_LIBS", "1");
+        } else {
+            config.define("BUILD_SHARED_LIBS", "0");
+        }
     }
 
     if env::var("CARGO_FEATURE_SHARED").is_ok() {
@@ -342,12 +378,6 @@ fn build_clip_cpp_library() {
         config.define("GGML_CUBLAS", "0");
     }
 
-    if env::var("CARGO_FEATURE_BUILD_SHARED_LIBS").is_ok() {
-        config.define("BUILD_SHARED_LIBS", "1");
-    } else {
-        config.define("BUILD_SHARED_LIBS", "0");
-    }
-
     if let Ok(system_name) = env::var("CMAKE_SYSTEM_NAME") {
         config.define("CMAKE_SYSTEM_NAME", system_name);
     }
@@ -358,7 +388,11 @@ fn build_clip_cpp_library() {
     println!("cargo:rustc-link-search=native={}/build", dst.display());
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-lib=dylib=stdc++");
-    println!("cargo:rustc-link-lib=clip");
+    if env::var("CARGO_FEATURE_STATIC").is_ok() {
+        println!("cargo:rustc-link-lib=static=clip");
+    } else {
+        println!("cargo:rustc-link-lib=clip");
+    }
     println!("cargo:rerun-if-changed=wrapper.h");
 
     let bindings = bindgen::Builder::default()

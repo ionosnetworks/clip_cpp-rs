@@ -47,6 +47,7 @@ f16c = ["clip_cpp-sys/f16c"]
 accelerate = ["clip_cpp-sys/accelerate"]
 openblas = ["clip_cpp-sys/openblas"]
 ggml_cublas = ["clip_cpp-sys/ggml_cublas"]
+ggml_static = ["clip_cpp-sys/ggml_static"]
 
 [dependencies]
 clip_cpp-sys = { path = "clip_cpp-sys", version = "0.1.0", default-features = false }
