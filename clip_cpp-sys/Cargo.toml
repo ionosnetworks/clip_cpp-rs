@@ -21,7 +21,7 @@ name = "clip_cpp_sys"
 path = "src/lib.rs"
 
 [features]
-default = ["native", "avx", "avx2", "fma", "f16c", "accelerate"]
+default = ["avx", "avx2", "fma", "f16c", "accelerate"]
 static = []
 build_tests = []
 build_examples = []

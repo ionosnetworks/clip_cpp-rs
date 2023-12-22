@@ -15,7 +15,6 @@ members = ["clip_cpp-sys"]
 
 [features]
 default = [
-    "native",
     "avx",
     "avx2",
     "fma",
