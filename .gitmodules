@@ -1,3 +1,4 @@
 [submodule "clip_cpp-sys/clip.cpp"]
 	path = clip_cpp-sys/clip.cpp
 	url = https://github.com/ionosnetworks/clip.cpp.git
+	branch = main
