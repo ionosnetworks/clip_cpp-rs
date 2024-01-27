@@ -50,6 +50,7 @@ ggml_static = ["clip_cpp-sys/ggml_static"]
 
 [dependencies]
 clip_cpp-sys = { path = "clip_cpp-sys", version = "0.1.0", default-features = false }
+ndarray = "0.15"
 thiserror = "1"
 
 [dev-dependencies]

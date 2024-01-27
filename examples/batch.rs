@@ -14,6 +14,8 @@ fn main() {
         .expect("Failed to build model");
 
     let img = image::open(img_path).expect("Failed to open image");
+    let image_size = model.vision_params().image_size();
+    let img = img.resize_exact(image_size as _, image_size as _, image::imageops::FilterType::Triangle);
     let img = img.to_rgb8();
 
     let img = clip::RGBImage::new(img.width(), img.height(), img.into_vec());

@@ -1,6 +1,8 @@
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
+use ndarray::{ArrayView, ArrayViewMut, Zip};
+
 use super::{Error, Image, TextParams, VisionParams};
 
 #[repr(i32)]
@@ -50,12 +52,22 @@ impl ModelBuilder {
 
         let text_params = unsafe { *clip_cpp_sys::clip_get_text_hparams(ctx.as_ptr()) };
         let vision_params = unsafe { *clip_cpp_sys::clip_get_vision_hparams(ctx.as_ptr()) };
+        let mean = unsafe {
+            let mean = clip_cpp_sys::clip_get_image_mean(ctx.as_ptr());
+            std::slice::from_raw_parts(mean, 3).to_vec()
+        };
+        let std = unsafe {
+            let std = clip_cpp_sys::clip_get_image_std(ctx.as_ptr());
+            std::slice::from_raw_parts(std, 3).to_vec()
+        };
 
         Ok(Model {
             ctx,
             text_params: text_params.into(),
             vision_params: vision_params.into(),
             threads: self.threads,
+            mean,
+            std,
         })
     }
 }
@@ -74,6 +86,7 @@ impl AsRef<clip_cpp_sys::clip_tokens> for Tokens {
 #[derive(Debug)]
 pub struct Blob {
     image: clip_cpp_sys::clip_image_f32,
+    _data: Vec<f32>,
 }
 
 impl AsRef<clip_cpp_sys::clip_image_f32> for Blob {
@@ -87,6 +100,8 @@ pub struct Model {
     threads: i32,
     text_params: TextParams,
     vision_params: VisionParams,
+    mean: Vec<f32>,
+    std: Vec<f32>,
 }
 
 unsafe impl Send for Model {}
@@ -143,23 +158,51 @@ impl Model {
     }
 
     pub fn preprocess_image<I: Image>(&self, image: I) -> Result<Blob, Error> {
-        let data = image.data().as_ptr();
-        let image = clip_cpp_sys::clip_image_u8 {
+        let mat = ArrayView::from_shape(
+            (image.height() as usize, image.width() as usize, 3),
+            image.data(),
+        )
+        .unwrap();
+
+        let mut dest = unsafe {
+            let mut v = Vec::<f32>::with_capacity(image.data().len());
+            v.set_len(image.data().len());
+            v
+        };
+
+        let dest_av = ArrayViewMut::from_shape(
+            (image.height() as usize, image.width() as usize, 3),
+            &mut dest,
+        )
+        .unwrap();
+
+        Zip::indexed(dest_av)
+            .and(&mat)
+            .for_each(|(_, _, c), im, mat| {
+                *im = ((*mat as f32) / 255.0 - self.mean[c]) / self.std[c]
+            });
+
+        let cimage = clip_cpp_sys::clip_image_f32 {
             nx: image.width() as _,
             ny: image.height() as _,
             size: image.size(),
-            data: data as *mut u8,
+            data: dest.as_mut_ptr(),
         };
-        let mut blob: clip_cpp_sys::clip_image_f32 = unsafe { std::mem::zeroed() };
-        unsafe {
-            if !clip_cpp_sys::clip_image_preprocess(self.ctx.as_ptr(), &image, &mut blob) {
-                return Err(Error::Preprocess);
-            }
-        }
-        Ok(Blob { image: blob })
+
+        Ok(Blob {
+            image: cimage,
+            _data: dest,
+        })
     }
 
     pub fn encode_image(&self, blob: &Blob, normalize: bool) -> Vec<f32> {
+        let image_size = self.vision_params.image_size();
+        if blob.image.nx != image_size || blob.image.ny != image_size {
+            panic!(
+                "invalid image size, expected ({image_size}x{image_size}) found ({}x{})",
+                blob.image.nx, blob.image.ny
+            );
+        }
         let mut encode = vec![0f32; self.vision_params.projection_dim() as usize];
         unsafe {
             clip_cpp_sys::clip_image_encode(
@@ -179,45 +222,10 @@ impl Model {
         T: IntoIterator,
         T::Item: Image,
     {
-        let images = images
+        let blobs = images
             .into_iter()
-            .map(|image| {
-                let data = image.data().as_ptr(); // TODO: image.data() might not live long enough
-                let image = clip_cpp_sys::clip_image_u8 {
-                    nx: image.width() as _,
-                    ny: image.height() as _,
-                    size: image.size(),
-                    data: data as *mut u8,
-                };
-                image
-            })
-            .collect::<Vec<_>>();
-        let batch = clip_cpp_sys::clip_image_u8_batch {
-            data: images.as_ptr() as _,
-            size: images.len(),
-        };
-        let mut blobs = {
-            let mut blobs = Vec::with_capacity(images.len());
-            unsafe { blobs.set_len(images.len()) };
-            blobs
-        };
-        let mut blobs_batch: clip_cpp_sys::clip_image_f32_batch = unsafe { std::mem::zeroed() };
-        blobs_batch.data = blobs.as_mut_ptr();
-
-        unsafe {
-            clip_cpp_sys::clip_image_batch_preprocess(
-                self.ctx.as_ptr(),
-                self.threads,
-                &batch,
-                &mut blobs_batch,
-            );
-        };
-
-        let blobs = blobs
-            .into_iter()
-            .map(|blob| Blob { image: blob })
-            .collect::<Vec<_>>();
-
+            .map(|i| self.preprocess_image(i))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(blobs)
     }
 
@@ -226,9 +234,18 @@ impl Model {
         images: T,
         normalize: bool,
     ) -> Vec<Vec<f32>> {
+        let image_size = self.vision_params.image_size();
         let mut images = images
             .into_iter()
-            .map(|image| image.image)
+            .map(|blob| {
+                if blob.image.nx != image_size || blob.image.ny != image_size {
+                    panic!(
+                        "invalid image size, expected ({image_size}x{image_size}) found ({}x{})",
+                        blob.image.nx, blob.image.ny
+                    );
+                }
+                blob.image
+            })
             .collect::<Vec<_>>();
         let mut encode = vec![0f32; images.len() * (self.vision_params.projection_dim() as usize)];
 
